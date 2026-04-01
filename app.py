@@ -40,5 +40,4 @@ if prompt := st.chat_input("설계 목표나 질문을 입력하세요"):
 
     st.session_state.messages.append({"role": "assistant", "content": reply})
 
-streamlit
-groq
+
