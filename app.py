@@ -39,9 +39,6 @@ if prompt := st.chat_input("설계 목표나 질문을 입력하세요"):
         st.markdown(reply)
 
     st.session_state.messages.append({"role": "assistant", "content": reply})
-```
 
-그리고 `requirements.txt`도 확인해서:
-```
 streamlit
 groq
