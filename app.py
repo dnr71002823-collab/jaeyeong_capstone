@@ -6,13 +6,36 @@ from supabase import create_client
 
 st.set_page_config(page_title="조선시대 관제 시스템", page_icon="🚢", layout="wide")
 
-SYSTEM_PROMPT = "너는 루버 블레이드 설계 전문 AI 어시스턴트야. 한국어로 답변해."
-
 # Supabase 클라이언트
 supabase = create_client(
     st.secrets["SUPABASE_URL"],
     st.secrets["SUPABASE_KEY"]
 )
+
+BLADE_KEYWORDS = ["루버", "블레이드", "각도", "풍속", "재질", "설계", "압력", "유량", "두께", "간격", "프레임"]
+
+def build_system_prompt():
+    """Supabase 과거 대화에서 루버 블레이드 관련 내용만 추출해서 SYSTEM_PROMPT에 주입"""
+    try:
+        all_sessions = supabase.table("chat_sessions").select("messages").execute()
+        history = ""
+        for session in all_sessions.data:
+            for msg in session["messages"]:
+                if msg["role"] == "system":
+                    continue
+                if any(kw in msg["content"] for kw in BLADE_KEYWORDS):
+                    role = "사용자" if msg["role"] == "user" else "AI"
+                    history += f"{role}: {msg['content']}\n"
+        history = history[-4000:]  # 토큰 제한: 최근 4000자만
+    except:
+        history = ""
+
+    return f"""너는 루버 블레이드 설계 전문 AI 어시스턴트야. 한국어로 답변해.
+
+## 과거 대화에서 학습한 루버 블레이드 설계 내용:
+{history if history else "아직 없음"}
+
+위 내용을 바탕으로 사용자의 설계 의도와 맥락을 파악해서 답변해."""
 
 def list_sessions():
     res = supabase.table("chat_sessions").select("id, title, date").order("date", desc=True).execute()
@@ -38,10 +61,10 @@ def delete_session(session_id):
 def make_title(prompt):
     return prompt[:15] + "..." if len(prompt) > 15 else prompt
 
-# 세션 상태 초기화
+# 세션 상태 초기화 (새 대화 시작 시 과거 대화 포함한 system prompt 주입)
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
-    st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    st.session_state.messages = [{"role": "system", "content": build_system_prompt()}]
     st.session_state.title = "새 대화"
 
 # 사이드바
@@ -49,7 +72,8 @@ with st.sidebar:
     st.title("🚢 대화 목록")
     if st.button("+ 새 대화", use_container_width=True):
         st.session_state.session_id = str(uuid.uuid4())
-        st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        # 새 대화 시작할 때마다 최신 과거 대화 내용 반영
+        st.session_state.messages = [{"role": "system", "content": build_system_prompt()}]
         st.session_state.title = "새 대화"
         st.rerun()
     st.divider()
@@ -66,10 +90,9 @@ with st.sidebar:
         with col2:
             if st.button("삭제", key=f"del_{s['id']}"):
                 delete_session(s["id"])
-                # 현재 보고 있던 대화가 삭제된 경우 새 대화로 초기화
                 if st.session_state.session_id == s["id"]:
                     st.session_state.session_id = str(uuid.uuid4())
-                    st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+                    st.session_state.messages = [{"role": "system", "content": build_system_prompt()}]
                     st.session_state.title = "새 대화"
                 st.rerun()
 
@@ -88,9 +111,11 @@ client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 if prompt := st.chat_input("설계 목표나 질문을 입력하세요"):
     if st.session_state.title == "새 대화":
         st.session_state.title = make_title(prompt)
+
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
+
     with st.chat_message("assistant"):
         stream = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -100,5 +125,6 @@ if prompt := st.chat_input("설계 목표나 질문을 입력하세요"):
         reply = st.write_stream(
             chunk.choices[0].delta.content or "" for chunk in stream
         )
+
     st.session_state.messages.append({"role": "assistant", "content": reply})
     save_session(st.session_state.session_id, st.session_state.title, st.session_state.messages)
