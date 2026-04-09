@@ -2,7 +2,7 @@ import streamlit as st
 from groq import Groq
 import pandas as pd
 from datetime import datetime
-import os, json, uuid
+import os, json, uuid, tempfile
 
 st.set_page_config(page_title="조선시대 관제 시스템", page_icon="🚢", layout="wide")
 
@@ -11,7 +11,6 @@ HISTORY_DIR = "chat_sessions"
 os.makedirs(HISTORY_DIR, exist_ok=True)
 
 def list_sessions():
-    """저장된 세션 목록 반환 (최신순)"""
     files = sorted(
         [f for f in os.listdir(HISTORY_DIR) if f.endswith(".json")],
         reverse=True
@@ -44,7 +43,6 @@ def save_session(session_id, title, messages):
         }, f, ensure_ascii=False)
 
 def make_title(prompt):
-    """첫 질문으로 제목 생성 (앞 15자)"""
     return prompt[:15] + "..." if len(prompt) > 15 else prompt
 
 # 세션 상태 초기화
@@ -64,27 +62,36 @@ with st.sidebar:
 
     st.divider()
     for s in list_sessions():
-        label = f"💬 {s['title']}\n{s['date']}"
-        if st.button(label, key=s["id"], use_container_width=True):
+        if st.button(f"💬 {s['title']}\n{s['date']}", key=s["id"], use_container_width=True):
             data = load_session(s["id"])
             st.session_state.session_id = s["id"]
             st.session_state.messages = data["messages"]
             st.session_state.title = data["title"]
             st.rerun()
 
+    # ✅ 저장 경로 확인 (확인 후 삭제해도 됨)
+    st.divider()
+    with st.expander("🔧 서버 정보"):
+        st.caption(f"📁 저장경로:")
+        st.code(os.path.abspath(HISTORY_DIR))
+        st.caption(f"📄 저장된 파일 수: {len(os.listdir(HISTORY_DIR))}개")
+        for f in os.listdir(HISTORY_DIR):
+            size = os.path.getsize(f"{HISTORY_DIR}/{f}")
+            st.caption(f"• {f[:8]}... ({size}bytes)")
+
 # ── 메인 화면 ─────────────────────────────
 st.title(f"🚢 {st.session_state.title}")
 st.info("Capstone Design: Chosun Saide (조선시대) - 박재영 팀장님 환영합니다.")
 
 for msg in st.session_state.messages:
-    if msg["role"] == "system": continue
+    if msg["role"] == "system":
+        continue
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 if prompt := st.chat_input("설계 목표나 질문을 입력하세요"):
-    # 첫 질문이면 제목 생성
     if st.session_state.title == "새 대화":
         st.session_state.title = make_title(prompt)
 
