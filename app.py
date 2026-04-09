@@ -32,6 +32,9 @@ def save_session(session_id, title, messages):
         "messages": messages
     }).execute()
 
+def delete_session(session_id):
+    supabase.table("chat_sessions").delete().eq("id", session_id).execute()
+
 def make_title(prompt):
     return prompt[:15] + "..." if len(prompt) > 15 else prompt
 
@@ -50,13 +53,25 @@ with st.sidebar:
         st.session_state.title = "새 대화"
         st.rerun()
     st.divider()
+
     for s in list_sessions():
-        if st.button(f"💬 {s['title']}\n{s['date']}", key=s["id"], use_container_width=True):
-            data = load_session(s["id"])
-            st.session_state.session_id = s["id"]
-            st.session_state.messages = data["messages"]
-            st.session_state.title = data["title"]
-            st.rerun()
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            if st.button(f"💬 {s['title']}\n{s['date']}", key=s["id"], use_container_width=True):
+                data = load_session(s["id"])
+                st.session_state.session_id = s["id"]
+                st.session_state.messages = data["messages"]
+                st.session_state.title = data["title"]
+                st.rerun()
+        with col2:
+            if st.button("🗑️", key=f"del_{s['id']}"):
+                delete_session(s["id"])
+                # 현재 보고 있던 대화가 삭제된 경우 새 대화로 초기화
+                if st.session_state.session_id == s["id"]:
+                    st.session_state.session_id = str(uuid.uuid4())
+                    st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+                    st.session_state.title = "새 대화"
+                st.rerun()
 
 # 메인 화면
 st.title(f"🚢 {st.session_state.title}")
