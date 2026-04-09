@@ -10,7 +10,7 @@ SYSTEM_PROMPT = "너는 루버 블레이드 설계 전문 AI 어시스턴트야.
 HISTORY_DIR = "chat_sessions"
 os.makedirs(HISTORY_DIR, exist_ok=True)
 
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
 GITHUB_REPO  = "dnr71002823/jaeyeong_capstone"
 GITHUB_BRANCH = "main"
 
