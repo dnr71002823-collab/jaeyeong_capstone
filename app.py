@@ -64,7 +64,7 @@ with st.sidebar:
                 st.session_state.title = data["title"]
                 st.rerun()
         with col2:
-            if st.button("🗑️", key=f"del_{s['id']}"):
+            if st.button("삭제", key=f"del_{s['id']}"):
                 delete_session(s["id"])
                 # 현재 보고 있던 대화가 삭제된 경우 새 대화로 초기화
                 if st.session_state.session_id == s["id"]:
